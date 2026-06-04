@@ -1,0 +1,32 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  k6-performance-test:
+    name: Run K6 Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install K6
+        run: |
+          curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz -o k6.tar.gz
+          tar -xzf k6.tar.gz
+          sudo mv k6-v0.55.0-linux-amd64/k6 /usr/local/bin/k6
+          k6 version
+
+      - name: Run K6 performance test
+        run: |
+          k6 run k6_test.js
+
+      - name: Install Hey
+        run: go install github.com/rakyll/hey@latest
+
+      - name: Run Hey performance test
+        run: |
+          ~/go/bin/hey -n 50 -c 5 https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net
