@@ -1,0 +1,29 @@
+name: Tests de securite OWASP ZAP
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  zap-security-scan:
+    name: OWASP ZAP Baseline Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-I'
+          fail_action: false
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-security-report
+          path: report_html.html
