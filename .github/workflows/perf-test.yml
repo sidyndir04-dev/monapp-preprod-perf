@@ -30,3 +30,21 @@ jobs:
       - name: Run Hey performance test
         run: |
           ~/go/bin/hey -n 50 -c 5 https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net
+          
+      - name: Installer Java (requis pour Gatling)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Installer Gatling
+        run: |
+          wget https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/3.10.5/gatling-charts-highcharts-bundle-3.10.5.zip
+          unzip gatling-charts-highcharts-bundle-3.10.5.zip
+          mv gatling-charts-highcharts-bundle-3.10.5 gatling
+
+      - name: Exécuter le test de performance Gatling
+        run: |
+          gatling/bin/gatling.sh --simulation-class BasicSimulation \
+            --simulations-folder simulations/ \
+            --results-folder results/
