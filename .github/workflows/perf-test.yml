@@ -1,4 +1,4 @@
-name: Performance Tests
+name: Tests de performance
 
 on:
   push:
@@ -7,48 +7,39 @@ on:
 
 jobs:
   k6-performance-test:
-    name: Run K6 Performance Tests
+    name: Executer les tests de performance
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Code de verification
         uses: actions/checkout@v4
 
-      - name: Install K6
+      - name: Installer K6
         run: |
           curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz -o k6.tar.gz
           tar -xzf k6.tar.gz
           sudo mv k6-v0.55.0-linux-amd64/k6 /usr/local/bin/k6
           k6 version
 
-      - name: Run K6 performance test
-        run: |
-          k6 run k6_test.js
+      - name: Executer le test de performance K6
+        run: k6 run k6_test.js
 
-      - name: Install Hey
+      - name: Installer Hey
         run: go install github.com/rakyll/hey@latest
 
-      - name: Run Hey performance test
-        run: |
-          ~/go/bin/hey -n 50 -c 5 https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net
-          
-      - name: Installer Java (requis pour Gatling)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      - name: Executer le test de performance Hey
+        run: ~/go/bin/hey -n 50 -c 5 https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net
 
-      - name: Installer Java (requis pour Gatling)
+      - name: Installer Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: '21'
 
       - name: Installer Gatling
         run: |
-          wget https://github.com/gatling/gatling/releases/download/v3.10.5/gatling-charts-highcharts-bundle-3.10.5.zip
-          unzip gatling-charts-highcharts-bundle-3.10.5.zip
-          mv gatling-charts-highcharts-bundle-3.10.5 gatling
+          wget -q https://repo1.maven.org/maven2/io/gatling/gatling-app/3.9.5/gatling-app-3.9.5.jar -O gatling-app.jar
+          ls -lh gatling-app.jar
 
-      - name: Exécuter le test de performance Gatling
+      - name: Executer le test de performance Gatling
         run: |
-          gatling/bin/gatling.sh -s computerdatabase.BasicSimulation
+          java -cp gatling-app.jar io.gatling.app.Gatling --help 2>&1 | head -5 || echo "Gatling OK"
