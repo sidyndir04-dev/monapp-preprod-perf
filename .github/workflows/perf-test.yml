@@ -35,19 +35,8 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Creer projet Gatling Maven
-        run: |
-          mkdir -p gatling-mvn/src/test/scala/perf
-          python3 -c "
-import os
-pom = '<project xmlns=\"http://maven.apache.org/POM/4.0.0\"><modelVersion>4.0.0</modelVersion><groupId>com.perf</groupId><artifactId>gatling-test</artifactId><version>1.0</version><dependencies><dependency><groupId>io.gatling.highcharts</groupId><artifactId>gatling-charts-highcharts</artifactId><version>3.9.5</version><scope>test</scope></dependency></dependencies><build><plugins><plugin><groupId>net.alchim31.maven</groupId><artifactId>scala-maven-plugin</artifactId><version>4.8.1</version><executions><execution><goals><goal>testCompile</goal></goals></execution></executions></plugin><plugin><groupId>io.gatling</groupId><artifactId>gatling-maven-plugin</artifactId><version>4.3.7</version><configuration><simulationClass>perf.PerfSimulation</simulationClass></configuration></plugin></plugins></build></project>'
-open('gatling-mvn/pom.xml', 'w').write(pom)
-scala = 'package perf\nimport io.gatling.core.Predef._\nimport io.gatling.http.Predef._\nimport scala.concurrent.duration._\nclass PerfSimulation extends Simulation {\n  val h = http.baseUrl(\"https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net\")\n  val s = scenario(\"T\").exec(http(\"H\").get(\"/\"))\n  setUp(s.inject(atOnceUsers(5))).protocols(h).assertions(global.responseTime.max.lt(5000),global.successfulRequests.percent.gt(95))\n}'
-open('gatling-mvn/src/test/scala/perf/PerfSimulation.scala', 'w').write(scala)
-print('OK')
-"
-
-      - name: Executer le test de performance Gatling
-        run: |
-          cd gatling-mvn
-          mvn gatling:test --batch-mode 2>&1 | tail -30
+      - name: Installer et executer Gatling
+        uses: gatling/gatling-github-action@v1
+        with:
+          gatling-version: 3.9.5
+          url: https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net
