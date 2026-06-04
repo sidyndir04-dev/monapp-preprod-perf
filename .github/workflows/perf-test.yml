@@ -38,41 +38,14 @@ jobs:
       - name: Creer projet Gatling Maven
         run: |
           mkdir -p gatling-mvn/src/test/scala/perf
-          printf '%s\n' '<project xmlns="http://maven.apache.org/POM/4.0.0"' \
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' \
-            'xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">' \
-            '<modelVersion>4.0.0</modelVersion>' \
-            '<groupId>com.perf</groupId>' \
-            '<artifactId>gatling-test</artifactId>' \
-            '<version>1.0</version>' \
-            '<dependencies><dependency>' \
-            '<groupId>io.gatling.highcharts</groupId>' \
-            '<artifactId>gatling-charts-highcharts</artifactId>' \
-            '<version>3.9.5</version><scope>test</scope>' \
-            '</dependency></dependencies>' \
-            '<build><plugins>' \
-            '<plugin><groupId>net.alchim31.maven</groupId>' \
-            '<artifactId>scala-maven-plugin</artifactId>' \
-            '<version>4.8.1</version>' \
-            '<executions><execution><goals><goal>testCompile</goal></goals></execution></executions>' \
-            '</plugin>' \
-            '<plugin><groupId>io.gatling</groupId>' \
-            '<artifactId>gatling-maven-plugin</artifactId>' \
-            '<version>4.3.7</version>' \
-            '<configuration><simulationClass>perf.PerfSimulation</simulationClass></configuration>' \
-            '</plugin></plugins></build></project>' \
-            > gatling-mvn/pom.xml
-          printf '%s\n' 'package perf' \
-            'import io.gatling.core.Predef._' \
-            'import io.gatling.http.Predef._' \
-            'import scala.concurrent.duration._' \
-            'class PerfSimulation extends Simulation {' \
-            '  val httpConf = http.baseUrl("https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net")' \
-            '  val scn = scenario("PerfTest").exec(http("Home").get("/"))' \
-            '  setUp(scn.inject(atOnceUsers(5))).protocols(httpConf)' \
-            '    .assertions(global.responseTime.max.lt(5000), global.successfulRequests.percent.gt(95))' \
-            '}' \
-            > gatling-mvn/src/test/scala/perf/PerfSimulation.scala
+          python3 -c "
+import os
+pom = '<project xmlns=\"http://maven.apache.org/POM/4.0.0\"><modelVersion>4.0.0</modelVersion><groupId>com.perf</groupId><artifactId>gatling-test</artifactId><version>1.0</version><dependencies><dependency><groupId>io.gatling.highcharts</groupId><artifactId>gatling-charts-highcharts</artifactId><version>3.9.5</version><scope>test</scope></dependency></dependencies><build><plugins><plugin><groupId>net.alchim31.maven</groupId><artifactId>scala-maven-plugin</artifactId><version>4.8.1</version><executions><execution><goals><goal>testCompile</goal></goals></execution></executions></plugin><plugin><groupId>io.gatling</groupId><artifactId>gatling-maven-plugin</artifactId><version>4.3.7</version><configuration><simulationClass>perf.PerfSimulation</simulationClass></configuration></plugin></plugins></build></project>'
+open('gatling-mvn/pom.xml', 'w').write(pom)
+scala = 'package perf\nimport io.gatling.core.Predef._\nimport io.gatling.http.Predef._\nimport scala.concurrent.duration._\nclass PerfSimulation extends Simulation {\n  val h = http.baseUrl(\"https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net\")\n  val s = scenario(\"T\").exec(http(\"H\").get(\"/\"))\n  setUp(s.inject(atOnceUsers(5))).protocols(h).assertions(global.responseTime.max.lt(5000),global.successfulRequests.percent.gt(95))\n}'
+open('gatling-mvn/src/test/scala/perf/PerfSimulation.scala', 'w').write(scala)
+print('OK')
+"
 
       - name: Executer le test de performance Gatling
         run: |
