@@ -1,0 +1,12 @@
+{
+    "name": "monapp-preprod",
+    "version": "1.0.0",
+    "description": "Application de preproduction avec headers de securite OWASP",
+    "main": "index.js",
+    "scripts": {
+          "start": "node index.js"
+    },
+    "engines": {
+          "node": ">=18.0.0"
+    }
+}
