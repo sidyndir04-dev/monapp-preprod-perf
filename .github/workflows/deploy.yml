@@ -1,0 +1,57 @@
+name: Deploy - Correction faille securite OWASP
+
+on:
+  push:
+      branches: [ main ]
+          paths:
+                - 'index.js'
+                      - 'package.json'
+                        workflow_dispatch:
+
+                        jobs:
+                          deploy:
+                              name: Deploy Node.js App to Azure App Service
+                                  runs-on: ubuntu-latest
+
+                                      steps:
+                                            - name: Checkout code
+                                                    uses: actions/checkout@v4
+
+                                                          - name: Setup Node.js
+                                                                  uses: actions/setup-node@v4
+                                                                          with:
+                                                                                    node-version: '18'
+
+                                                                                          - name: Deploy to Azure Web App
+                                                                                                  uses: azure/webapps-deploy@v3
+                                                                                                          with:
+                                                                                                                    app-name: 'monapp-preprod'
+                                                                                                                              publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+                                                                                                                                        package: .
+                                                                                                                                        
+                                                                                                                                          security-check:
+                                                                                                                                              name: OWASP ZAP Security Scan post-deploiement
+                                                                                                                                                  runs-on: ubuntu-latest
+                                                                                                                                                      needs: deploy
+                                                                                                                                                      
+                                                                                                                                                          steps:
+                                                                                                                                                                - name: Checkout code
+                                                                                                                                                                        uses: actions/checkout@v4
+                                                                                                                                                                        
+                                                                                                                                                                              - name: Attendre que l app soit prete
+                                                                                                                                                                                      run: sleep 30
+                                                                                                                                                                                      
+                                                                                                                                                                                            - name: OWASP ZAP Baseline Scan
+                                                                                                                                                                                                    uses: zaproxy/action-baseline@v0.12.0
+                                                                                                                                                                                                            with:
+                                                                                                                                                                                                                      target: 'https://monapp-preprod-gkdrehfwbkdgerft.francecentral-01.azurewebsites.net'
+                                                                                                                                                                                                                                cmd_options: '-I'
+                                                                                                                                                                                                                                          fail_action: false
+                                                                                                                                                                                                                                                    allow_issue_writing: false
+                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                          - name: Upload ZAP Report
+                                                                                                                                                                                                                                                                  uses: actions/upload-artifact@v4
+                                                                                                                                                                                                                                                                          if: always()
+                                                                                                                                                                                                                                                                                  with:
+                                                                                                                                                                                                                                                                                            name: zap-security-report-post-fix
+                                                                                                                                                                                                                                                                                                      path: report_html.html
