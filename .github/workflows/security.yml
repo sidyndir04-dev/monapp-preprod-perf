@@ -1,0 +1,45 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dependency-audit:
+    name: NPM Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  sast-scan:
+    name: SAST - NodeJsScan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - run: pip install nodejsscan
+      - run: nodejsscan -d . -o report.json
+      - name: Upload SAST Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: sast-report
+          path: report.json
+
+  zap-scan:
+    name: DAST - OWASP ZAP
+    runs-on: ubuntu-latest
+    steps:
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'https://monapp-preprod-perf.azurewebsites.net'
+          fail_action: true
