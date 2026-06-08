@@ -1,0 +1,13 @@
+# Fichier de regles ZAP pour le scan Clickjacking
+# Format: ID	ACTION	PARAMETRE
+# Actions possibles: IGNORE, WARN, FAIL
+#
+# 10020 = X-Frame-Options Header Not Set (Clickjacking)
+# On laisse cette alerte active (WARN) pour qu'elle apparaisse dans le rapport
+# 10020	WARN	(Low)
+#
+# Autres alertes communes - on les ignore pour focaliser sur le Clickjacking
+10016	IGNORE	(Low)
+10017	IGNORE	(Low)
+10021	IGNORE	(Low)
+10098	IGNORE	(Low)
