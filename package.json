@@ -1,15 +1,18 @@
 {
   "name": "monapp-preprod",
   "version": "1.0.0",
-  "description": "Application de demonstration - OWASP A03:2021 Injection SQL",
+  "description": "Application de demonstration - OWASP A03:2021 Injection SQL + A05:2021 Clickjacking",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "start:vulnerable": "node clickjacking/app-vulnerable.js",
+    "start:fixed": "node clickjacking/app-fixed.js",
     "test": "echo \"No tests configured\" && exit 0"
   },
   "dependencies": {
     "express": "^4.18.2",
     "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
     "mysql2": "^3.6.5"
   },
   "engines": {
