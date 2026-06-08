@@ -1,24 +1,11 @@
-# Regles ZAP pour le scan Clickjacking - OWASP A05:2021
-# Format: ID	ACTION
-# Actions : IGNORE, WARN, FAIL
+# Regles ZAP - Format: ID	ACTION	PARAMETRE
+# ACTION: IGNORE | WARN | FAIL
+# PARAMETRE: texte libre (obligatoire, peut etre vide avec un espace)
 #
-# IMPORTANT : Ne PAS mettre 10020 en IGNORE
-# 10020 = Anti-clickjacking Header (X-Frame-Options Header Not Set)
-# Si l'app n'a pas de X-Frame-Options, ZAP doit lever cette alerte
-# On la met en WARN pour qu'elle apparaisse bien dans le rapport HTML
-10020	WARN
-#
-# 10021 = X-Content-Type-Options Header Missing
-10021	WARN
-#
-# 10035 = Strict-Transport-Security Header Not Set
-10035	WARN
-#
-# 10038 = Content Security Policy (CSP) Header Not Set
-10038	WARN
-#
-# Autres alertes qu'on ignore pour focaliser sur le Clickjacking
-10016	IGNORE
-10017	IGNORE
-10049	IGNORE
-90003	IGNORE
+# IMPORTANT : 10020 = Anti-clickjacking Header NOT SET
+# On le laisse en WARN pour qu'il apparaisse dans le rapport
+10020	WARN	(Medium) X-Frame-Options Header Not Set
+10021	WARN	(Low) X-Content-Type-Options Header Missing
+10035	WARN	(Low) Strict-Transport-Security Header Not Set
+10038	WARN	(Low) Content Security Policy Header Not Set
+10049	IGNORE	Non-Storable Content
