@@ -1,27 +1,25 @@
 # =================================================================
 # WORKFLOW CI/CD - Test de securite Clickjacking (OWASP A05:2021)
-# VERSION CORRIGEE
+# VERSION FINALE - CORRECTION VALIDEE
 # =================================================================
-# PROBLEME PRECEDENT :
-#   ZAP scannait l'URL Azure qui retournait 403 Forbidden.
-#   Azure ajoutait ses propres headers de securite sur la page 403,
-#   donc ZAP voyait "PASS: Anti-clickjacking Header" => pas d'alerte.
+# CE QUE FAIT CE PIPELINE :
 #
-# SOLUTION :
-#   Demarrer l'app vulnerable localement sur le runner GitHub Actions
-#   et pointer ZAP vers http://0.0.0.0:3000 (via --add-host dans Docker).
-#   Comme ZAP tourne dans Docker, on utilise host.docker.internal
-#   ou on expose l'app sur 0.0.0.0 et on passe l'IP du runner.
+# JOB 1 - DETECTION (app VULNERABLE) :
+#   Demarre app-vulnerable.js (SANS X-Frame-Options)
+#   curl -I => confirme l'ABSENCE du header
+#   ZAP scanne => detecte WARN-NEW [10020] Missing Anti-clickjacking Header
+#   Upload du rapport "rapport-vulnerable"
 #
-# APPROCHE RETENUE :
-#   Utiliser zaproxy/action-baseline avec le parametre network host
-#   via cmd_options pour pointer vers le localhost du runner.
-#   Sinon, utiliser l'URL Azure en desactivant les headers de securite
-#   temporairement (branche de test).
+# JOB 2 - CORRECTION (app CORRIGEE avec helmet) :
+#   Demarre app-fixed.js (AVEC helmet.frameguard => X-Frame-Options: SAMEORIGIN)
+#   curl -I => confirme la PRESENCE du header
+#   ZAP scanne => [10020] doit etre PASS (alerte absente)
+#   Upload du rapport "rapport-corrige"
 #
-# POUR LE RENDU : On cree une branche "demo-clickjacking-vulnerable"
-#   ou l'app est deployee SANS les headers de securite, et ZAP
-#   scanne cette URL. Ainsi l'alerte [10020] apparait bien en WARN/FAIL.
+# LECTURE DU RAPPORT ZAP :
+#   Telecharger les artifacts depuis GitHub Actions
+#   rapport-vulnerable/report_html.html => voir WARN-NEW [10020]
+#   rapport-corrige/report_html.html    => [10020] absent (PASS)
 # =================================================================
 
 name: Tests de securite - Clickjacking (OWASP A05:2021)
@@ -38,10 +36,10 @@ on:
 
 jobs:
   # ================================================================
-  # JOB 1 : Detection Clickjacking - App vulnerable en local
+  # JOB 1 : App VULNERABLE => ZAP doit detecter [10020]
   # ================================================================
-  detect-clickjacking:
-    name: "Etape 1+2 - Detection Clickjacking locale + Scan ZAP"
+  scan-vulnerable:
+    name: "Etape 1+2 - Scan ZAP sur app VULNERABLE (detecte [10020])"
     runs-on: ubuntu-latest
 
     steps:
@@ -56,102 +54,66 @@ jobs:
       - name: Installation des dependances npm
         run: npm install
 
-      # ----------------------------------------------------------
-      # Demarrer l'app VULNERABLE en arriere-plan sur 0.0.0.0:3000
-      # ----------------------------------------------------------
-      - name: Demarrage de l'app VULNERABLE (port 3000, ecoute 0.0.0.0)
+      - name: Demarrage de l'app VULNERABLE sur port 3000
         run: |
-          # On lance l'app vulnerable - elle n'a pas de X-Frame-Options
           node clickjacking/app-vulnerable.js &
           echo "APP_PID=$!" >> $GITHUB_ENV
-          # Attendre que le serveur soit pret
           for i in $(seq 1 10); do
-            if curl -s http://localhost:3000 > /dev/null 2>&1; then
-              echo "Serveur pret apres ${i}s"
-              break
-            fi
+            curl -s http://localhost:3000 > /dev/null 2>&1 && break
             sleep 1
           done
+          echo "App vulnerable prete"
 
-      # ----------------------------------------------------------
-      # Verification ABSENCE header X-Frame-Options
-      # ----------------------------------------------------------
-      - name: "Verification: ABSENCE X-Frame-Options => app vulnerable"
+      - name: "Verification ABSENCE X-Frame-Options (app vulnerable)"
         run: |
-          echo "=== HEADERS HTTP DE L'APP VULNERABLE ==="
+          echo "=== HEADERS HTTP - APP VULNERABLE ==="
           curl -I http://localhost:3000
           echo ""
-          echo "--- Analyse des headers de securite ---"
           if curl -sI http://localhost:3000 | grep -i "x-frame-options"; then
-            echo "INATTENDU : X-Frame-Options present sur l'app vulnerable"
+            echo "INATTENDU: header present"
           else
-            echo "CONFIRME : X-Frame-Options ABSENT => app vulnerable au Clickjacking !"
-          fi
-          if curl -sI http://localhost:3000 | grep -i "content-security-policy"; then
-            echo "INATTENDU : CSP present sur l'app vulnerable"
-          else
-            echo "CONFIRME : Content-Security-Policy ABSENT => pas de protection frame-ancestors"
+            echo "CONFIRME: X-Frame-Options ABSENT => vulnerable au Clickjacking"
           fi
 
-      # ----------------------------------------------------------
-      # Recuperer l'IP du runner pour que ZAP (Docker) puisse
-      # acceder a localhost du runner via l'interface docker0
-      # ----------------------------------------------------------
-      - name: Recuperation de l'IP interne du runner
+      - name: Recuperation IP docker0 pour scan ZAP
         run: |
-          # L'IP de la gateway docker0 permet au container ZAP
-          # d'acceder au localhost du runner
-          DOCKER_HOST_IP=$(ip route | grep docker0 | awk '{print $9}' | head -1)
-          if [ -z "$DOCKER_HOST_IP" ]; then
-            DOCKER_HOST_IP="172.17.0.1"
-          fi
-          echo "DOCKER_HOST_IP=$DOCKER_HOST_IP" >> $GITHUB_ENV
-          echo "IP docker0 gateway: $DOCKER_HOST_IP"
-          # Verification que l'app est accessible depuis cette IP
-          curl -s http://$DOCKER_HOST_IP:3000 | head -5 || echo "Acces depuis IP docker: KO"
-          curl -s http://localhost:3000 | head -5 || echo "Acces depuis localhost: KO"
+          IP=$(ip route | grep docker0 | awk '{print $9}' | head -1)
+          [ -z "$IP" ] && IP="172.17.0.1"
+          echo "DOCKER_HOST_IP=$IP" >> $GITHUB_ENV
+          echo "IP runner accessible depuis Docker: $IP"
+          curl -s http://$IP:3000 | head -3 || true
 
-      # ----------------------------------------------------------
-      # Scan OWASP ZAP Baseline
-      # ZAP tourne dans Docker, il accede a l'app via l'IP docker0
-      # ----------------------------------------------------------
-      - name: "Scan OWASP ZAP - Detection alerte Clickjacking [10020]"
+      - name: "Scan ZAP - App VULNERABLE - doit montrer WARN [10020]"
         uses: zaproxy/action-baseline@v0.12.0
         with:
           target: 'http://${{ env.DOCKER_HOST_IP }}:3000'
-          rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a -j'
-          issue_title: 'ZAP Clickjacking - OWASP A05:2021'
+          issue_title: 'ZAP Clickjacking vulnerable'
           allow_issue_writing: false
           fail_action: false
         continue-on-error: true
 
-      # ----------------------------------------------------------
-      # Upload rapport ZAP
-      # ----------------------------------------------------------
-      - name: Upload rapport ZAP (artifact)
+      - name: Upload rapport ZAP - App Vulnerable
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: zap-report-clickjacking
+          name: rapport-vulnerable
           path: |
             report_html.html
             report_json.json
-            zap*.html
-            zap*.json
           retention-days: 30
 
-      - name: Arret de l'app vulnerable
+      - name: Arret app vulnerable
         if: always()
         run: kill $APP_PID 2>/dev/null || true
 
   # ================================================================
-  # JOB 2 : Verification de la correction avec helmet
+  # JOB 2 : App CORRIGEE => ZAP ne doit PAS detecter [10020]
   # ================================================================
-  verify-fix:
-    name: "Etape 4 - Verification correction Clickjacking (helmet)"
+  scan-fixed:
+    name: "Etape 4 - Scan ZAP sur app CORRIGEE (alerte [10020] absente)"
     runs-on: ubuntu-latest
-    needs: detect-clickjacking
+    needs: scan-vulnerable
 
     steps:
       - name: Checkout du code
@@ -162,43 +124,64 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Installation des dependances (avec helmet)
-        run: |
-          npm install
-          npm install helmet --save
+      - name: Installation des dependances npm (avec helmet)
+        run: npm install
 
-      - name: Demarrage de l'app CORRIGEE avec helmet (port 3001)
+      # app-fixed.js utilise PORT=3001 par defaut
+      # On le force a 3000 pour uniformiser avec le scan ZAP
+      - name: Demarrage de l'app CORRIGEE (helmet) sur port 3000
         run: |
-          node clickjacking/app-fixed.js &
+          PORT=3000 node clickjacking/app-fixed.js &
           echo "FIXED_PID=$!" >> $GITHUB_ENV
-          sleep 3
+          for i in $(seq 1 10); do
+            curl -s http://localhost:3000 > /dev/null 2>&1 && break
+            sleep 1
+          done
+          echo "App corrigee prete"
 
-      - name: "Verification: PRESENCE X-Frame-Options: SAMEORIGIN"
+      - name: "Verification PRESENCE X-Frame-Options: SAMEORIGIN"
         run: |
-          echo "=== HEADERS HTTP DE L'APP CORRIGEE ==="
-          curl -I http://localhost:3001
+          echo "=== HEADERS HTTP - APP CORRIGEE ==="
+          curl -I http://localhost:3000
           echo ""
-          if curl -sI http://localhost:3001 | grep -i "x-frame-options: sameorigin"; then
-            echo "SUCCES : X-Frame-Options: SAMEORIGIN present => CORRECTION VALIDEE !"
+          if curl -sI http://localhost:3000 | grep -i "x-frame-options: sameorigin"; then
+            echo "SUCCES: X-Frame-Options: SAMEORIGIN present => CORRECTION VALIDEE"
           else
-            echo "ECHEC : X-Frame-Options manquant apres correction !"
+            echo "ECHEC: header manquant"
             exit 1
           fi
-          if curl -sI http://localhost:3001 | grep -i "content-security-policy"; then
-            echo "SUCCES : Content-Security-Policy present => Protection renforcee !"
+          if curl -sI http://localhost:3000 | grep -i "content-security-policy"; then
+            echo "SUCCES: Content-Security-Policy present"
           fi
 
-      - name: "Simulation: blocage de l'attaque Clickjacking"
+      - name: Recuperation IP docker0 pour scan ZAP
         run: |
-          echo "=========================================="
-          echo "RESULT : Avec X-Frame-Options: SAMEORIGIN,"
-          echo "le navigateur refuse de charger l'app dans"
-          echo "une iframe externe. Message navigateur :"
-          echo "'Refused to display in a frame because it"
-          echo " set X-Frame-Options to sameorigin'"
-          echo "=> ATTAQUE CLICKJACKING BLOQUEE !"
-          echo "=========================================="
+          IP=$(ip route | grep docker0 | awk '{print $9}' | head -1)
+          [ -z "$IP" ] && IP="172.17.0.1"
+          echo "DOCKER_HOST_IP=$IP" >> $GITHUB_ENV
+          echo "IP docker0: $IP"
+          curl -sI http://$IP:3000 | grep -i "x-frame-options" || true
 
-      - name: Arret de l'app corrigee
+      - name: "Scan ZAP - App CORRIGEE - [10020] doit etre PASS"
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://${{ env.DOCKER_HOST_IP }}:3000'
+          cmd_options: '-a -j'
+          issue_title: 'ZAP Clickjacking corrige'
+          allow_issue_writing: false
+          fail_action: false
+        continue-on-error: true
+
+      - name: Upload rapport ZAP - App Corrigee
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rapport-corrige
+          path: |
+            report_html.html
+            report_json.json
+          retention-days: 30
+
+      - name: Arret app corrigee
         if: always()
         run: kill $FIXED_PID 2>/dev/null || true
